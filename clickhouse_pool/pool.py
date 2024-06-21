@@ -5,8 +5,29 @@ connection pool. Each connection is an instance of a clickhouse_driver client.
 """
 import threading
 from contextlib import contextmanager
-from clickhouse_driver import Client
-from typing import Generator
+from clickhouse_driver import Client as TCPClient
+from clickhouse_connect import get_client
+from typing import Generator, Any
+from enum import Enum
+
+class ClientDriver(Enum):
+    """Enum for the different types of clients available."""
+    TCP = 1
+    HTTP = 2
+    
+def CHClientFactory(driver: ClientDriver, **kwargs) -> Any:
+    """Factory function for creating a clickhouse client.
+
+    Args:
+        driver: The type of client to create.
+        **kwargs: similar to clickhouse-driver, all settings available are
+            documented `here
+            <https://clickhouse.tech/docs/en/single/#settings>`_.
+    """
+    if driver == ClientDriver.TCP:
+        return TCPClient(**kwargs)
+    elif driver == ClientDriver.HTTP:
+        return get_client(**kwargs)
 
 
 class ChPoolError(Exception):
@@ -53,9 +74,9 @@ class ChPool:
         for _ in range(self.connections_min):
             self._connect()
 
-    def _connect(self, key: str = None) -> Client:
+    def _connect(self, key: str = None) -> Any:
         """Create a new client and assign to a key."""
-        client = Client(**self.connection_args)
+        client = CHClientFactory(**self.connection_args)
         if key is not None:
             self._used[key] = client
             self._rused[id(client)] = key
@@ -68,8 +89,8 @@ class ChPool:
         self._keys += 1
         return self._keys
 
-    def pull(self, key: str = None) -> Client:
-        """Get an available client from the pool.
+    def pull(self, key: str = None) -> Any:
+        """Get an available CH Client from the pool.
 
         Args:
             key: If known, the key of the client you would like.
@@ -101,7 +122,7 @@ class ChPool:
         finally:
             self._lock.release()
 
-    def push(self, client: Client = None, key: str = None, close: bool = False):
+    def push(self, client: Any = None, key: str = None, close: bool = False):
         """Return a client to the pool for reuse.
 
         Args:
@@ -154,7 +175,7 @@ class ChPool:
             self._lock.release()
 
     @contextmanager
-    def get_client(self, key: str = None) -> Generator[Client, None, None]:
+    def get_client(self, key: str = None) -> Generator[Any, None, None]:
         """A clean way to grab a client via a contextmanager.
 
 
@@ -162,7 +183,7 @@ class ChPool:
             key: If known, the key of the client to grab.
 
         Yields:
-            Client: a clickhouse-driver client
+            Abny: a clickhouse-driver client or clickhouse-connect client.
 
         """
         client = self.pull(key)
