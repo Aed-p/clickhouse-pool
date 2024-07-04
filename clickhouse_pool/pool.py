@@ -60,7 +60,7 @@ class ChPool:
         self.connections_min = kwargs.pop("connections_min", 10)
         self.connections_max = kwargs.pop("connections_max", 20)
 
-        self.connection_args = {"host": kwargs.pop("host", "localhost"), **kwargs}
+        self.connection_args = {"host": kwargs.pop("host", "localhost"), "driver": kwargs.pop("driver", ClientDriver.TCP), **kwargs}
         self.closed = False
         self._pool = []
         self._used = {}
